@@ -1,12 +1,15 @@
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommentItem } from '@/components/comment-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { createPressableStyle, createRippleConfig, getActivityIndicatorColor } from '@/constants/platform-styles';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { CommentNode, HackerNewsClient, Story } from '@/lib/hn-api';
 import { extractDomain, formatNumber, formatTimeAgo } from '@/lib/utils';
 
@@ -21,6 +24,7 @@ export default function StoryDetailScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const borderColor = useThemeColor({}, 'border');
   const { id } = useLocalSearchParams<{ id: string }>();
   const storyId = parseInt(id || '0', 10);
 
@@ -78,6 +82,11 @@ export default function StoryDetailScreen() {
   const handleUrlPress = async () => {
     if (!story?.url) return;
 
+    // Add haptic feedback
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
     try {
       await WebBrowser.openBrowserAsync(story.url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
@@ -89,6 +98,10 @@ export default function StoryDetailScreen() {
   };
 
   const handleBack = () => {
+    // Add haptic feedback
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     router.back();
   };
 
@@ -126,7 +139,10 @@ export default function StoryDetailScreen() {
   if (storyLoading) {
     return (
       <ThemedView style={[styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#ff6600" />
+        <ActivityIndicator 
+          size="large" 
+          color={getActivityIndicatorColor(colorScheme || 'light')} 
+        />
         <ThemedText 
           style={styles.loadingText}
           lightColor="#666"
@@ -144,9 +160,13 @@ export default function StoryDetailScreen() {
         <ThemedText style={styles.errorTitle}>
           {error || 'Story not found'}
         </ThemedText>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <Pressable 
+          style={createPressableStyle(styles.backButton)} 
+          onPress={handleBack}
+          android_ripple={createRippleConfig()}
+        >
           <ThemedText style={styles.backButtonText}>Go Back</ThemedText>
-        </TouchableOpacity>
+        </Pressable>
       </ThemedView>
     );
   }
@@ -164,7 +184,7 @@ export default function StoryDetailScreen() {
         <ThemedView 
           style={[
             styles.storyHeader,
-            { borderBottomColor: isDark ? '#333' : '#E5E5E5' }
+            { borderBottomColor: borderColor }
           ]}
           lightColor="#fff"
           darkColor="#151718"
@@ -231,9 +251,10 @@ export default function StoryDetailScreen() {
               lightColor="#f8f9fa"
               darkColor="#2a2a2a"
             >
-              <TouchableOpacity 
+              <Pressable 
                 onPress={handleUrlPress}
-                activeOpacity={0.7}
+                style={createPressableStyle(styles.urlButton)}
+                android_ripple={createRippleConfig()}
               >
               <ThemedText 
                 style={styles.url} 
@@ -246,7 +267,7 @@ export default function StoryDetailScreen() {
               <ThemedText style={styles.domain}>
                 {domain}
               </ThemedText>
-              </TouchableOpacity>
+              </Pressable>
             </ThemedView>
           )}
         </ThemedView>
@@ -259,7 +280,10 @@ export default function StoryDetailScreen() {
           
           {commentsLoading ? (
             <ThemedView style={styles.commentsLoading}>
-              <ActivityIndicator size="small" color="#ff6600" />
+              <ActivityIndicator 
+                size="small" 
+                color={getActivityIndicatorColor(colorScheme || 'light')} 
+              />
               <ThemedText 
                 style={styles.loadingText}
                 lightColor="#666"
@@ -367,6 +391,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: '#ff6600',
+  },
+  urlButton: {
+    // URL button styling handled by Pressable
   },
   url: {
     fontSize: 14,

@@ -1,11 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SearchResultItem } from '@/components/search-result-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { getActivityIndicatorColor, getRefreshControlColors } from '@/constants/platform-styles';
+import { useInfiniteList } from '@/hooks/use-infinite-list';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { AlgoliaHit, AlgoliaResponse, HackerNewsClient } from '@/lib/hn-api';
 
 export type SearchFilterType = 'all' | 'story' | 'comment';
@@ -22,97 +25,63 @@ export function SearchList({
   filterType = 'all', 
   sortOrder = 'relevance' 
 }: SearchListProps) {
-  const [results, setResults] = useState<AlgoliaHit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasNextPage, setHasNextPage] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const borderColor = useThemeColor({}, 'border');
   const hnClient = useMemo(() => new HackerNewsClient({
     cacheTtlMs: 30000, // 30 second cache for search
     maxConcurrency: 6,
   }), []);
 
-  const searchStories = useCallback(async (page: number = 0, isRefresh: boolean = false) => {
-    if (!query.trim()) return;
-
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else if (page === 0) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      
-      setError(null);
-      
-      // Build search options
-      const searchOptions = {
-        page,
-        hitsPerPage: 20,
-        query: query.trim(),
-        sortByDate: sortOrder === 'date',
-        tags: filterType === 'all' ? '(story,comment)' : filterType,
-      };
-      
-      const response: AlgoliaResponse = await hnClient.search(searchOptions);
-      
-      if (page === 0 || isRefresh) {
-        setResults(response.hits);
-        setCurrentPage(0);
-      } else {
-        setResults(prev => [...prev, ...response.hits]);
-      }
-      
-      setTotalResults(response.nbHits);
-      setHasNextPage(page < response.nbPages - 1);
-      setCurrentPage(page);
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to search stories';
-      setError(errorMessage);
-      console.error('Error searching stories:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
+  const searchStories = useCallback(async (page: number, pageSize: number) => {
+    if (!query.trim()) {
+      return { items: [], hasNextPage: false };
     }
+
+    // Build search options
+    const searchOptions = {
+      page,
+      hitsPerPage: pageSize,
+      query: query.trim(),
+      sortByDate: sortOrder === 'date',
+      tags: filterType === 'all' ? '(story,comment)' : filterType,
+    };
+    
+    const response: AlgoliaResponse = await hnClient.search(searchOptions);
+    
+    // Update total results for display
+    setTotalResults(response.nbHits);
+    
+    return {
+      items: response.hits,
+      hasNextPage: page < response.nbPages - 1,
+    };
   }, [hnClient, query, filterType, sortOrder]);
 
-  // Debounced search effect
+  const {
+    items: results,
+    loading,
+    refreshing,
+    loadingMore,
+    error,
+    handleRefresh,
+    handleLoadMore,
+    reset,
+  } = useInfiniteList(searchStories, { 
+    pageSize: 20, 
+    debounceMs: 500 
+  });
+
+  // Reset when query changes
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]);
-      setCurrentPage(0);
-      setHasNextPage(true);
+      reset();
       setTotalResults(0);
-      return;
     }
-
-    const timeoutId = setTimeout(() => {
-      searchStories(0, true);
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [query, filterType, sortOrder, searchStories]);
-
-  const handleRefresh = useCallback(() => {
-    if (query.trim()) {
-      searchStories(0, true);
-    }
-  }, [searchStories, query]);
-
-  const handleLoadMore = useCallback(() => {
-    if (!loadingMore && hasNextPage && query.trim()) {
-      searchStories(currentPage + 1);
-    }
-  }, [searchStories, currentPage, hasNextPage, loadingMore, query]);
+  }, [query, reset]);
 
   const handleResultPress = useCallback((hit: AlgoliaHit) => {
     // For stories, navigate to story detail
@@ -133,7 +102,10 @@ export function SearchList({
     if (!loadingMore) return null;
     return (
       <ThemedView style={styles.loadingMore}>
-        <ActivityIndicator size="small" color="#ff6600" />
+        <ActivityIndicator 
+          size="small" 
+          color={getActivityIndicatorColor(colorScheme || 'light')} 
+        />
         <ThemedText 
           style={styles.loadingText}
           lightColor="#666"
@@ -208,7 +180,7 @@ export function SearchList({
     if (!query.trim() || loading) return null;
     
     return (
-      <ThemedView style={styles.header}>
+      <ThemedView style={[styles.header, { borderBottomColor: borderColor }]}>
         <ThemedText 
           style={styles.headerText}
           lightColor="#666"
@@ -232,7 +204,10 @@ export function SearchList({
   if (loading && results.length === 0) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ff6600" />
+        <ActivityIndicator 
+          size="large" 
+          color={getActivityIndicatorColor(colorScheme || 'light')} 
+        />
         <ThemedText 
           style={styles.loadingText}
           lightColor="#666"
@@ -254,7 +229,7 @@ export function SearchList({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#ff6600"
+            {...getRefreshControlColors(colorScheme || 'light')}
             title="Pull to refresh"
           />
         }
@@ -301,7 +276,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5E5',
   },
   headerText: {
     fontSize: 14,

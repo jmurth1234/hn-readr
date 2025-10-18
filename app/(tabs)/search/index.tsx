@@ -1,41 +1,56 @@
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SearchFilterType, SearchList, SearchSortOrder } from '@/components/search-list';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { createPressableStyle, createRippleConfig } from '@/constants/platform-styles';
+import { useThemeColor } from '@/hooks/use-theme-color';
 
 export default function SearchIndex() {
   const { query = '' } = useLocalSearchParams<{ query?: string }>();
   const [filterType, setFilterType] = useState<SearchFilterType>('all');
   const [sortOrder, setSortOrder] = useState<SearchSortOrder>('relevance');
   const insets = useSafeAreaInsets();
+  const borderColor = useThemeColor({}, 'border');
 
   const renderFilterButton = (
     label: string, 
     value: SearchFilterType | SearchSortOrder, 
     currentValue: SearchFilterType | SearchSortOrder,
     onPress: () => void
-  ) => (
-    <TouchableOpacity
-      style={[
-        styles.filterButton,
-        value === currentValue && styles.filterButtonActive
-      ]}
-      onPress={onPress}
-    >
-      <ThemedText 
-        style={[
-          styles.filterButtonText,
-          value === currentValue && styles.filterButtonTextActive
-        ]}
+  ) => {
+    const handlePress = () => {
+      // Add haptic feedback
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      onPress();
+    };
+
+    return (
+      <Pressable
+        style={createPressableStyle([
+          styles.filterButton,
+          value === currentValue && styles.filterButtonActive
+        ])}
+        onPress={handlePress}
+        android_ripple={createRippleConfig()}
       >
-        {label}
-      </ThemedText>
-    </TouchableOpacity>
-  );
+        <ThemedText 
+          style={[
+            styles.filterButtonText,
+            value === currentValue && styles.filterButtonTextActive
+          ]}
+        >
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  };
 
   const paddingTop = Platform.OS === 'ios' ? insets.top + 8 : 8;
 
@@ -43,7 +58,7 @@ export default function SearchIndex() {
     <ThemedView style={styles.container}>
       {/* Filter Controls */}
       {query && (
-        <ThemedView style={[styles.filterContainer, { paddingTop }]}>
+        <ThemedView style={[styles.filterContainer, { paddingTop, borderBottomColor: borderColor }]}>
           <ThemedView style={styles.filterSection}>
             <ThemedText style={styles.filterLabel}>Type:</ThemedText>
             <View style={styles.filterButtons}>
@@ -81,7 +96,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E5E5',
   },
   filterSection: {
     flexDirection: 'row',

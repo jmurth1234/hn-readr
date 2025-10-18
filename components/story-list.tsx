@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StoryItem } from '@/components/story-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { getActivityIndicatorColor, getRefreshControlColors } from '@/constants/platform-styles';
+import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { HackerNewsClient, Page, Story, StoryFeedKind } from '@/lib/hn-api';
 
 export interface StoryListProps {
@@ -14,77 +16,40 @@ export interface StoryListProps {
 }
 
 export function StoryList({ feedType, title }: StoryListProps) {
-  const [stories, setStories] = useState<Story[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasNextPage, setHasNextPage] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
   const hnClient = useMemo(() => new HackerNewsClient({
     cacheTtlMs: 60000, // 1 minute cache
     maxConcurrency: 6,
   }), []);
 
-  const fetchStories = useCallback(async (page: number = 0, isRefresh: boolean = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else if (page === 0) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      
-      setError(null);
-      
-      const result: Page<Story> = await hnClient.listStories(feedType, { 
-        page, 
-        pageSize: 30, 
-        includeItems: true 
-      });
-      
-      if (page === 0 || isRefresh) {
-        setStories(result.items);
-        setCurrentPage(0);
-      } else {
-        setStories(prev => [...prev, ...result.items]);
-      }
-      
-      setHasNextPage(result.hasNextPage);
-      setCurrentPage(page);
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load stories';
-      setError(errorMessage);
-      console.error('Error fetching stories:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
-    }
+  const fetchStories = useCallback(async (page: number, pageSize: number) => {
+    const result: Page<Story> = await hnClient.listStories(feedType, { 
+      page, 
+      pageSize, 
+      includeItems: true 
+    });
+    
+    return {
+      items: result.items,
+      hasNextPage: result.hasNextPage,
+    };
   }, [hnClient, feedType]);
 
-  const handleRefresh = useCallback(() => {
-    fetchStories(0, true);
-  }, [fetchStories]);
-
-  const handleLoadMore = useCallback(() => {
-    if (!loadingMore && hasNextPage) {
-      fetchStories(currentPage + 1);
-    }
-  }, [fetchStories, currentPage, hasNextPage, loadingMore]);
+  const {
+    items: stories,
+    loading,
+    refreshing,
+    loadingMore,
+    error,
+    handleRefresh,
+    handleLoadMore,
+  } = useInfiniteList(fetchStories, { pageSize: 30 });
 
   const handleStoryPress = useCallback((story: Story) => {
     router.push(`/story/${story.id}` as any);
   }, [router]);
-
-  useEffect(() => {
-    fetchStories();
-  }, [fetchStories]);
 
   const renderStory = ({ item }: { item: Story }) => (
     <StoryItem story={item} onPress={handleStoryPress} />
@@ -94,7 +59,10 @@ export function StoryList({ feedType, title }: StoryListProps) {
     if (!loadingMore) return null;
     return (
       <ThemedView style={styles.loadingMore}>
-        <ActivityIndicator size="small" color="#ff6600" />
+        <ActivityIndicator 
+          size="small" 
+          color={getActivityIndicatorColor(colorScheme || 'light')} 
+        />
         <ThemedText 
           style={styles.loadingText}
           lightColor="#666"
@@ -140,7 +108,10 @@ export function StoryList({ feedType, title }: StoryListProps) {
   if (loading && stories.length === 0) {
     return (
       <ThemedView style={[styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#ff6600" />
+        <ActivityIndicator 
+          size="large" 
+          color={getActivityIndicatorColor(colorScheme || 'light')} 
+        />
         <ThemedText 
           style={styles.loadingText}
           lightColor="#666"
@@ -162,7 +133,7 @@ export function StoryList({ feedType, title }: StoryListProps) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#ff6600"
+            {...getRefreshControlColors(colorScheme || 'light')}
             title="Pull to refresh"
           />
         }

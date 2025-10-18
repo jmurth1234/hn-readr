@@ -1,8 +1,11 @@
+import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
+import { Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { createPressableStyle, createRippleConfig } from '@/constants/platform-styles';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { CommentNode } from '@/lib/hn-api';
 import { SimpleHtmlText } from '@/lib/hn-text-formatter';
 import { formatTimeAgo } from '@/lib/utils';
@@ -18,8 +21,13 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
   const [isCollapsed, setIsCollapsed] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const borderColor = useThemeColor({}, 'border');
 
   const handleToggleCollapse = () => {
+    // Add haptic feedback
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     setIsCollapsed(!isCollapsed);
   };
 
@@ -43,12 +51,12 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
   const indentLevel = Math.min(depth, maxDepth);
 
   return (
-    <ThemedView style={[styles.container, { paddingLeft: indentLevel * 16 }]}>
+    <ThemedView style={[styles.container, { paddingLeft: indentLevel * 16, borderBottomColor: borderColor }]}>
       {/* Comment Header */}
-      <TouchableOpacity
-        style={styles.header}
+      <Pressable
+        style={createPressableStyle(styles.header)}
         onPress={handleToggleCollapse}
-        activeOpacity={0.7}
+        android_ripple={createRippleConfig()}
       >
         <ThemedView style={styles.headerContent}>
           <ThemedText style={styles.collapseButton}>
@@ -98,7 +106,7 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
             </>
           )}
         </ThemedView>
-      </TouchableOpacity>
+      </Pressable>
 
       {/* Comment Content */}
       {!isCollapsed && (
@@ -150,10 +158,10 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
 
       {/* Show More Button for Deep Nesting */}
       {shouldShowMoreButton && !isCollapsed && (
-        <TouchableOpacity
-          style={styles.showMoreButton}
+        <Pressable
+          style={createPressableStyle(styles.showMoreButton)}
           onPress={() => onShowMore?.(comment.id, replyCount)}
-          activeOpacity={0.7}
+          android_ripple={createRippleConfig()}
         >
           <ThemedText
             style={styles.showMoreText}
@@ -162,7 +170,7 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
           >
             Show {replyCount} more {replyCount === 1 ? 'reply' : 'replies'}
           </ThemedText>
-        </TouchableOpacity>
+        </Pressable>
       )}
 
       {/* Child Comments */}
@@ -186,7 +194,6 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
 const styles = StyleSheet.create({
   container: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   header: {
     paddingVertical: 8,
