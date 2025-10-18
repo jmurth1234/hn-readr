@@ -2,7 +2,6 @@ import React from 'react';
 
 import { StoryList } from '@/components/story-list';
 
-export default function HomeScreen() {
-  return <StoryList feedType="top" />;
+export default function AskScreen() {
+  return <StoryList feedType="ask" />;
 }
-
