@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,22 +7,23 @@ import { StoryItem } from '@/components/story-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getActivityIndicatorColor, getRefreshControlColors } from '@/constants/platform-styles';
+import { useHNClient } from '@/contexts/hn-client-context';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
-import { HackerNewsClient, Page, Story, StoryFeedKind } from '@/lib/hn-api';
+import { Page, Story, StoryFeedKind } from '@/lib/hn-api';
 
 export interface StoryListProps {
   feedType: StoryFeedKind;
   title?: string;
+  selectedStoryId?: number | null;
+  isTablet?: boolean;
+  onStorySelect?: (story: Story) => void;
 }
 
-export function StoryList({ feedType, title }: StoryListProps) {
+export function StoryList({ feedType, title, selectedStoryId, isTablet = false, onStorySelect }: StoryListProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const hnClient = useMemo(() => new HackerNewsClient({
-    cacheTtlMs: 60000, // 1 minute cache
-    maxConcurrency: 6,
-  }), []);
+  const hnClient = useHNClient();
 
   const fetchStories = useCallback(async (page: number, pageSize: number) => {
     const result: Page<Story> = await hnClient.listStories(feedType, { 
@@ -48,11 +49,21 @@ export function StoryList({ feedType, title }: StoryListProps) {
   } = useInfiniteList(fetchStories, { pageSize: 30 });
 
   const handleStoryPress = useCallback((story: Story) => {
-    router.push(`/story/${story.id}` as any);
-  }, [router]);
+    if (isTablet && onStorySelect) {
+      // In tablet mode, select the story instead of navigating
+      onStorySelect(story);
+    } else {
+      // In mobile mode, navigate to story detail screen
+      router.push(`/story/${story.id}` as any);
+    }
+  }, [router, isTablet, onStorySelect]);
 
   const renderStory = ({ item }: { item: Story }) => (
-    <StoryItem story={item} onPress={handleStoryPress} />
+    <StoryItem 
+      story={item} 
+      onPress={handleStoryPress}
+      isSelected={isTablet && selectedStoryId === item.id}
+    />
   );
 
   const renderFooter = () => {

@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
@@ -14,42 +13,50 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { CommentNode, Story } from '@/lib/hn-api';
 import { extractDomain, formatNumber, formatTimeAgo } from '@/lib/utils';
 
-export default function StoryDetailScreen() {
+export interface StoryDetailViewProps {
+  storyId: number | null;
+  onError?: (error: string) => void;
+}
+
+export function StoryDetailView({ storyId, onError }: StoryDetailViewProps) {
   const [story, setStory] = useState<Story | null>(null);
   const [commentTree, setCommentTree] = useState<CommentNode | null>(null);
-  const [storyLoading, setStoryLoading] = useState(true);
+  const [storyLoading, setStoryLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const borderColor = useThemeColor({}, 'border');
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const storyId = parseInt(id || '0', 10);
   const hnClient = useHNClient();
 
   const fetchStory = useCallback(async () => {
+    if (!storyId) return;
+    
     try {
       setStoryLoading(true);
       setError(null);
       const storyData = await hnClient.getItem<Story>(storyId);
       if (!storyData || storyData.type !== 'story') {
-        setError('Story not found');
+        const errorMsg = 'Story not found';
+        setError(errorMsg);
+        onError?.(errorMsg);
         return;
       }
       setStory(storyData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load story';
       setError(errorMessage);
+      onError?.(errorMessage);
       console.error('Error fetching story:', err);
     } finally {
       setStoryLoading(false);
     }
-  }, [hnClient, storyId]);
+  }, [hnClient, storyId, onError]);
 
   const fetchComments = useCallback(async () => {
+    if (!storyId) return;
+    
     try {
       setCommentsLoading(true);
       const tree = await hnClient.getCommentsTree(storyId, {
@@ -67,7 +74,9 @@ export default function StoryDetailScreen() {
 
   useEffect(() => {
     if (!storyId) {
-      setError('Invalid story ID');
+      setStory(null);
+      setCommentTree(null);
+      setError(null);
       setStoryLoading(false);
       return;
     }
@@ -92,14 +101,6 @@ export default function StoryDetailScreen() {
       console.error('Failed to open URL:', error);
       Alert.alert('Error', 'Failed to open URL');
     }
-  };
-
-  const handleBack = () => {
-    // Add haptic feedback
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    router.back();
   };
 
   const handleShowMoreComments = useCallback(async (commentId: number, remainingCount: number) => {
@@ -133,9 +134,24 @@ export default function StoryDetailScreen() {
     }
   }, [hnClient]);
 
+  // Empty state when no story is selected
+  if (!storyId) {
+    return (
+      <ThemedView style={styles.emptyContainer}>
+        <ThemedText 
+          style={styles.emptyText}
+          lightColor="#666"
+          darkColor="#9BA1A6"
+        >
+          Select a story to view details
+        </ThemedText>
+      </ThemedView>
+    );
+  }
+
   if (storyLoading) {
     return (
-      <ThemedView style={[styles.loadingContainer, { paddingTop: insets.top }]}>
+      <ThemedView style={styles.loadingContainer}>
         <ActivityIndicator 
           size="large" 
           color={getActivityIndicatorColor(colorScheme || 'light')} 
@@ -153,17 +169,10 @@ export default function StoryDetailScreen() {
 
   if (error || !story) {
     return (
-      <ThemedView style={[styles.errorContainer, { paddingTop: insets.top }]}>
+      <ThemedView style={styles.errorContainer}>
         <ThemedText style={styles.errorTitle}>
           {error || 'Story not found'}
         </ThemedText>
-        <Pressable 
-          style={createPressableStyle(styles.backButton)} 
-          onPress={handleBack}
-          android_ripple={createRippleConfig()}
-        >
-          <ThemedText style={styles.backButtonText}>Go Back</ThemedText>
-        </Pressable>
       </ThemedView>
     );
   }
@@ -322,6 +331,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -343,17 +362,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 20,
     textAlign: 'center',
-  },
-  backButton: {
-    backgroundColor: '#ff6600',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
   },
   scrollView: {
     flex: 1,

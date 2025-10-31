@@ -1,8 +1,8 @@
 import React from 'react';
 
-import { StoryList } from '@/components/story-list';
+import { AdaptiveStoryScreen } from '@/components/adaptive-story-screen';
 
 export default function HomeScreen() {
-  return <StoryList feedType="top" />;
+  return <AdaptiveStoryScreen feedType="top" />;
 }
 

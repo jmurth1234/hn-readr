@@ -1,7 +1,7 @@
 import React from 'react';
 
-import { StoryList } from '@/components/story-list';
+import { AdaptiveStoryScreen } from '@/components/adaptive-story-screen';
 
 export default function BestScreen() {
-  return <StoryList feedType="best" />;
+  return <AdaptiveStoryScreen feedType="best" />;
 }

@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,7 +17,7 @@ export interface CommentItemProps {
   onShowMore?: (commentId: number, remainingCount: number) => void;
 }
 
-export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: CommentItemProps) {
+export const CommentItem = memo(function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: CommentItemProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -189,7 +189,7 @@ export function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: Commen
       )}
     </ThemedView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

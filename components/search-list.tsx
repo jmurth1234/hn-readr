@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,9 +7,10 @@ import { SearchResultItem } from '@/components/search-result-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getActivityIndicatorColor, getRefreshControlColors } from '@/constants/platform-styles';
+import { useHNClient } from '@/contexts/hn-client-context';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { AlgoliaHit, AlgoliaResponse, HackerNewsClient } from '@/lib/hn-api';
+import { AlgoliaHit, AlgoliaResponse } from '@/lib/hn-api';
 
 export type SearchFilterType = 'all' | 'story' | 'comment';
 export type SearchSortOrder = 'relevance' | 'date';
@@ -18,12 +19,18 @@ export interface SearchListProps {
   query: string;
   filterType?: SearchFilterType;
   sortOrder?: SearchSortOrder;
+  selectedStoryId?: number | null;
+  isTablet?: boolean;
+  onStorySelect?: (storyId: number) => void;
 }
 
 export function SearchList({ 
   query, 
   filterType = 'all', 
-  sortOrder = 'relevance' 
+  sortOrder = 'relevance',
+  selectedStoryId,
+  isTablet = false,
+  onStorySelect,
 }: SearchListProps) {
   const [totalResults, setTotalResults] = useState(0);
 
@@ -31,10 +38,7 @@ export function SearchList({
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const borderColor = useThemeColor({}, 'border');
-  const hnClient = useMemo(() => new HackerNewsClient({
-    cacheTtlMs: 30000, // 30 second cache for search
-    maxConcurrency: 6,
-  }), []);
+  const hnClient = useHNClient();
 
   const searchStories = useCallback(async (page: number, pageSize: number) => {
     if (!query.trim()) {
@@ -84,19 +88,47 @@ export function SearchList({
   }, [query, reset]);
 
   const handleResultPress = useCallback((hit: AlgoliaHit) => {
-    // For stories, navigate to story detail
-    if (hit._tags?.includes('story')) {
-      router.push(`/story/${hit.objectID}` as any);
-    } 
-    // For comments, navigate to the parent story
-    else if (hit._tags?.includes('comment') && hit.story_id) {
-      router.push(`/story/${hit.story_id}` as any);
+    if (isTablet && onStorySelect) {
+      // In tablet mode, select the story instead of navigating
+      // For stories, use the story ID
+      // For comments, use the parent story ID
+      const storyId = hit._tags?.includes('story') 
+        ? parseInt(hit.objectID, 10)
+        : hit.story_id 
+        ? hit.story_id 
+        : null;
+      
+      if (storyId) {
+        onStorySelect(storyId);
+      }
+    } else {
+      // In mobile mode, navigate to story detail screen
+      // For stories, navigate to story detail
+      if (hit._tags?.includes('story')) {
+        router.push(`/story/${hit.objectID}` as any);
+      } 
+      // For comments, navigate to the parent story
+      else if (hit._tags?.includes('comment') && hit.story_id) {
+        router.push(`/story/${hit.story_id}` as any);
+      }
     }
-  }, [router]);
+  }, [router, isTablet, onStorySelect]);
 
-  const renderResult = ({ item }: { item: AlgoliaHit }) => (
-    <SearchResultItem hit={item} onPress={handleResultPress} />
-  );
+  const renderResult = ({ item }: { item: AlgoliaHit }) => {
+    // Determine if this item is selected
+    const storyId = item._tags?.includes('story') 
+      ? parseInt(item.objectID, 10)
+      : item.story_id || null;
+    const isSelected = isTablet && selectedStoryId !== null && storyId === selectedStoryId;
+    
+    return (
+      <SearchResultItem 
+        hit={item} 
+        onPress={handleResultPress}
+        isSelected={isSelected}
+      />
+    );
+  };
 
   const renderFooter = () => {
     if (!loadingMore) return null;

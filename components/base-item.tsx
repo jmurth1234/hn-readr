@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
-import React from 'react';
+import React, { memo } from 'react';
 import { Linking, Platform, Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -30,12 +30,13 @@ export interface BaseItemProps {
   data: NormalizedItemData;
   onPress: (data: NormalizedItemData) => void;
   children?: React.ReactNode; // For additional content like type indicators
+  isSelected?: boolean;
 }
 
 // Normalize Story data to common format
 export const normalizeStory = (story: Story): NormalizedItemData => ({
   id: story.id,
-  title: story.title,
+  title: story.title || 'No title',
   url: story.url,
   points: story.score || 0,
   comments: story.descendants || 0,
@@ -54,8 +55,8 @@ export const normalizeAlgoliaHit = (hit: AlgoliaHit): NormalizedItemData => ({
   author: hit.author || 'unknown',
   timeAgo: hit.created_at_i ? formatTimeAgo(hit.created_at_i) : 'unknown',
   type: hit._tags?.includes('comment') ? 'comment' : 'story',
-  parentStoryTitle: hit.story_title,
-  commentText: hit.comment_text,
+  parentStoryTitle: hit.story_title ?? undefined,
+  commentText: hit.comment_text ?? undefined,
 });
 
 // Shared metadata component
@@ -147,7 +148,7 @@ export function ItemDomain({ url }: { url: string }) {
 }
 
 // Base item component with shared structure
-export function BaseItem({ data, onPress, children }: BaseItemProps) {
+export const BaseItem = memo(function BaseItem({ data, onPress, children, isSelected = false }: BaseItemProps) {
   const borderColor = useThemeColor({}, 'border');
   
   const handlePress = () => {
@@ -161,7 +162,10 @@ export function BaseItem({ data, onPress, children }: BaseItemProps) {
   return (
     <ThemedView style={[styles.container, { borderBottomColor: borderColor }]}>
       <Pressable 
-        style={createPressableStyle(styles.content)}
+        style={createPressableStyle([
+          styles.content,
+          isSelected && { backgroundColor: Platform.select({ ios: 'rgba(255, 102, 0, 0.1)', android: 'rgba(255, 102, 0, 0.15)' }) }
+        ])}
         onPress={handlePress}
         android_ripple={createRippleConfig()}
       >
@@ -181,7 +185,7 @@ export function BaseItem({ data, onPress, children }: BaseItemProps) {
       </Pressable>
     </ThemedView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

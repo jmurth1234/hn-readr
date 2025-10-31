@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 import { BaseItem, normalizeStory, type NormalizedItemData } from '@/components/base-item';
 import { Story } from '@/lib/hn-api';
@@ -6,9 +6,10 @@ import { Story } from '@/lib/hn-api';
 export interface StoryItemProps {
   story: Story;
   onPress: (story: Story) => void;
+  isSelected?: boolean;
 }
 
-export function StoryItem({ story, onPress }: StoryItemProps) {
+export const StoryItem = memo(function StoryItem({ story, onPress, isSelected = false }: StoryItemProps) {
   const normalizedData = normalizeStory(story);
 
   const handlePress = (data: NormalizedItemData) => {
@@ -17,10 +18,11 @@ export function StoryItem({ story, onPress }: StoryItemProps) {
   };
 
   return (
-    <BaseItem 
-      data={normalizedData} 
+    <BaseItem
+      data={normalizedData}
       onPress={handlePress}
+      isSelected={isSelected}
     />
   );
-}
+});
 

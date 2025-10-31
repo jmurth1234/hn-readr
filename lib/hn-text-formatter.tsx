@@ -7,6 +7,38 @@ import { ThemedText } from '@/components/themed-text';
 import React from 'react';
 import { Linking, StyleSheet, Text, useColorScheme } from 'react-native';
 
+/**
+ * Decode HTML entities to their corresponding characters
+ */
+export function decodeHtmlEntities(text: string): string {
+  const entityMap: { [key: string]: string } = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#x27;': "'",
+    '&#x2F;': '/',
+    '&#x60;': '`',
+    '&#x3D;': '=',
+    '&nbsp;': ' ',
+  };
+
+  return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+    return entityMap[entity] || entity;
+  });
+}
+
+/**
+ * Handle link press - opens URL in default browser
+ */
+export async function handleLinkPress(url: string): Promise<void> {
+  try {
+    await Linking.openURL(url);
+  } catch (error) {
+    console.error('Failed to open URL:', error);
+  }
+}
+
 interface FormattedTextProps {
   text: string;
   style?: any;
@@ -22,33 +54,6 @@ interface FormattedTextProps {
 export function FormattedText({ text, style, lightColor, darkColor }: FormattedTextProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-
-  const handleLinkPress = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (error) {
-      console.error('Failed to open URL:', error);
-    }
-  };
-
-  // Decode HTML entities
-  const decodeHtmlEntities = (text: string): string => {
-    const entityMap: { [key: string]: string } = {
-      '&amp;': '&',
-      '&lt;': '<',
-      '&gt;': '>',
-      '&quot;': '"',
-      '&#x27;': "'",
-      '&#x2F;': '/',
-      '&#x60;': '`',
-      '&#x3D;': '=',
-      '&nbsp;': ' ',
-    };
-
-    return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
-      return entityMap[entity] || entity;
-    });
-  };
 
   // Parse HTML and convert to React Native components
   const parseHtml = (html: string): React.ReactNode[] => {
@@ -177,33 +182,6 @@ export function FormattedText({ text, style, lightColor, darkColor }: FormattedT
 export function SimpleHtmlText({ text, style, lightColor, darkColor, numberOfLines }: FormattedTextProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-
-  const handleLinkPress = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (error) {
-      console.error('Failed to open URL:', error);
-    }
-  };
-
-  // Decode HTML entities
-  const decodeHtmlEntities = (text: string): string => {
-    const entityMap: { [key: string]: string } = {
-      '&amp;': '&',
-      '&lt;': '<',
-      '&gt;': '>',
-      '&quot;': '"',
-      '&#x27;': "'",
-      '&#x2F;': '/',
-      '&#x60;': '`',
-      '&#x3D;': '=',
-      '&nbsp;': ' ',
-    };
-
-    return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
-      return entityMap[entity] || entity;
-    });
-  };
 
   // Convert HTML to plain text with basic formatting
   let processedText = text;
@@ -427,14 +405,6 @@ function processMarkdownFormatting(text: string): React.ReactNode[] {
   }
 
   return elements.length > 0 ? elements : [<Text key={`text-${keyCounter}`}>{text}</Text>];
-}
-
-async function handleLinkPress(url: string) {
-  try {
-    await Linking.openURL(url);
-  } catch (error) {
-    console.error('Failed to open URL:', error);
-  }
 }
 
 const styles = StyleSheet.create({

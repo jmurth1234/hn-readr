@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { BaseItem, normalizeAlgoliaHit, type NormalizedItemData } from '@/components/base-item';
@@ -9,9 +9,10 @@ import { AlgoliaHit } from '@/lib/hn-api';
 export interface SearchResultItemProps {
   hit: AlgoliaHit;
   onPress: (hit: AlgoliaHit) => void;
+  isSelected?: boolean;
 }
 
-export function SearchResultItem({ hit, onPress }: SearchResultItemProps) {
+export const SearchResultItem = memo(function SearchResultItem({ hit, onPress, isSelected = false }: SearchResultItemProps) {
   const normalizedData = normalizeAlgoliaHit(hit);
   
   // Determine if this is a comment or story
@@ -30,6 +31,7 @@ export function SearchResultItem({ hit, onPress }: SearchResultItemProps) {
     <BaseItem 
       data={normalizedData} 
       onPress={handlePress}
+      isSelected={isSelected}
     >
       {/* Content type indicator */}
       <ThemedView style={styles.typeIndicator}>
@@ -68,7 +70,7 @@ export function SearchResultItem({ hit, onPress }: SearchResultItemProps) {
       )}
     </BaseItem>
   );
-}
+});
 
 const styles = StyleSheet.create({
   typeIndicator: {

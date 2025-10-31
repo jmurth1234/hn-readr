@@ -1,7 +1,7 @@
 import React from 'react';
 
-import { StoryList } from '@/components/story-list';
+import { AdaptiveStoryScreen } from '@/components/adaptive-story-screen';
 
 export default function AskScreen() {
-  return <StoryList feedType="ask" />;
+  return <AdaptiveStoryScreen feedType="ask" />;
 }

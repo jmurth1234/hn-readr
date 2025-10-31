@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SearchFilterType, SearchList, SearchSortOrder } from '@/components/search-list';
+import { AdaptiveSearchScreen } from '@/components/adaptive-search-screen';
+import { SearchFilterType, SearchSortOrder } from '@/components/search-list';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { createPressableStyle, createRippleConfig } from '@/constants/platform-styles';
@@ -79,7 +80,7 @@ export default function SearchIndex() {
       )}
 
       {/* Search Results */}
-      <SearchList 
+      <AdaptiveSearchScreen 
         query={query} 
         filterType={filterType} 
         sortOrder={sortOrder} 
