@@ -33,6 +33,16 @@ export const Spacing = {
   xl: Platform.OS === 'ios' ? 32 : 32,
 };
 
+// Tab bar height for iOS 26+ (when positioned at top on iPad)
+// On iOS 26+, the tab bar is positioned at the top and is not included in safe area insets
+const isIOS26OrHigher = () => {
+  if (Platform.OS !== 'ios') return false;
+  const version = parseInt(String(Platform.Version), 10);
+  return version >= 26;
+};
+
+export const TAB_BAR_HEIGHT = isIOS26OrHigher() ? 49 : 0;
+
 // Platform-specific border radius
 export const BorderRadius = {
   sm: Platform.OS === 'ios' ? 6 : 4,

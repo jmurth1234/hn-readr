@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommentItem } from '@/components/comment-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { createPressableStyle, createRippleConfig, getActivityIndicatorColor } from '@/constants/platform-styles';
+import { createPressableStyle, createRippleConfig, getActivityIndicatorColor, TAB_BAR_HEIGHT } from '@/constants/platform-styles';
 import { useHNClient } from '@/contexts/hn-client-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { CommentNode, Story } from '@/lib/hn-api';
@@ -185,7 +185,14 @@ export function StoryDetailView({ storyId, onError }: StoryDetailViewProps) {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{
+          paddingTop: insets.top + TAB_BAR_HEIGHT,
+          paddingBottom: insets.bottom
+        }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Story Header */}
         <ThemedView 
           style={[

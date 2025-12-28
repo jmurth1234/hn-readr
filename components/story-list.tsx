@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StoryItem } from '@/components/story-item';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getActivityIndicatorColor, getRefreshControlColors } from '@/constants/platform-styles';
+import { getActivityIndicatorColor, getRefreshControlColors, TAB_BAR_HEIGHT } from '@/constants/platform-styles';
 import { useHNClient } from '@/contexts/hn-client-context';
 import { useInfiniteList } from '@/hooks/use-infinite-list';
 import { Page, Story, StoryFeedKind } from '@/lib/hn-api';
@@ -154,7 +154,10 @@ export function StoryList({ feedType, title, selectedStoryId, isTablet = false, 
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={[
           styles.listContainer,
-          { paddingTop: insets.top, paddingBottom: insets.bottom }
+          {
+            paddingTop: insets.top + (isTablet ? TAB_BAR_HEIGHT : 0),
+            paddingBottom: insets.bottom
+          }
         ]}
         showsVerticalScrollIndicator={false}
       />
