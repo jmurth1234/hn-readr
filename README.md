@@ -1,50 +1,69 @@
-# Welcome to your Expo app 👋
+# hn-readr
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A fast, read-only Hacker News reader for iOS and Android, built with React Native and Expo.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Multiple feeds** — Browse Top, New, Best, and Ask HN stories
+- **Full-text search** — Find stories and comments powered by Algolia
+- **Threaded comments** — Collapsible comment trees with depth indicators
+- **Tablet support** — Split-view layout on iPad and Android tablets
+- **Dark mode** — Automatic light/dark theme based on system settings
+- **In-app browser** — Open links without leaving the app
+- **Pull to refresh** and infinite scroll on all feeds
 
-   ```bash
-   npm install
-   ```
+## Getting Started
 
-2. Start the app
+### Prerequisites
 
-   ```bash
-   npx expo start
-   ```
+- [Node.js](https://nodejs.org/) (v18+)
+- [Yarn](https://yarnpkg.com/)
+- For iOS: macOS with Xcode
+- For Android: Android Studio with an emulator or physical device
 
-In the output, you'll find options to open the app in a
+### Install
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+yarn install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Run
 
-## Learn more
+```sh
+# Start the Expo dev server
+yarn start
 
-To learn more about developing your project with Expo, look at the following resources:
+# Run on a specific platform
+yarn ios
+yarn android
+yarn web
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Scan the QR code with [Expo Go](https://expo.dev/go) to run on a physical device.
 
-## Join the community
+### Test
 
-Join our community of developers creating universal apps.
+```sh
+yarn test
+yarn test:watch
+yarn test:coverage
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Lint & Format
+
+```sh
+yarn lint
+yarn format
+yarn format:check
+```
+
+## Tech Stack
+
+- [React Native](https://reactnative.dev/) + [Expo](https://expo.dev/) (SDK 54, New Architecture)
+- [Expo Router](https://docs.expo.dev/router/introduction/) for file-based navigation
+- [TypeScript](https://www.typescriptlang.org/) with strict mode
+- [Hacker News API](https://github.com/HackerNews/API) (Firebase) + [Algolia HN Search](https://hn.algolia.com/api) for search
+
+## License
+
+MIT
