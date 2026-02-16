@@ -3,29 +3,99 @@
  * Parses HTML content from HN API and renders as React Native components
  */
 
+import React, { useMemo } from 'react';
+import { Linking, StyleSheet, Text } from 'react-native';
+
 import { ThemedText } from '@/components/themed-text';
-import React from 'react';
-import { Linking, StyleSheet, Text, useColorScheme } from 'react-native';
+
+const ENTITY_MAP: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&apos;': "'",
+  '&#x27;': "'",
+  '&#x2F;': '/',
+  '&#x60;': '`',
+  '&#x3D;': '=',
+  '&nbsp;': ' ',
+  '&mdash;': '—',
+  '&ndash;': '–',
+  '&hellip;': '…',
+  '&lsquo;': '‘',
+  '&rsquo;': '’',
+  '&ldquo;': '“',
+  '&rdquo;': '”',
+};
+
+const HTML_ENTITY_REGEX = /&[a-zA-Z0-9#]+;/g;
+const PARAGRAPH_OPEN_REGEX = /<p[^>]*>/gi;
+const PARAGRAPH_CLOSE_REGEX = /<\/p>/gi;
+const LINE_BREAK_REGEX = /<br\s*\/?>/gi;
+const LINK_TAG_REGEX = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+const ITALIC_TAG_REGEX = /<(i|em)[^>]*>([^<]*)<\/(i|em)>/gi;
+const BOLD_TAG_REGEX = /<(b|strong)[^>]*>([^<]*)<\/(b|strong)>/gi;
+const CODE_TAG_REGEX = /<code[^>]*>([^<]*)<\/code>/gi;
+const REMAINING_TAG_REGEX = /<[^>]*>/g;
+const EXTRA_LINE_BREAK_REGEX = /\n\s*\n\s*\n/g;
+const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
+const BOLD_REGEX = /\*\*([^*]+)\*\*/g;
+const ITALIC_REGEX = /\*([^*]+)\*/g;
+const INLINE_CODE_REGEX = /`([^`]+)`/g;
+const MARKER_SPLIT_REGEX = /(__(?:BOLD|ITALIC|CODE)_(?:START|END)__)/g;
 
 /**
  * Decode HTML entities to their corresponding characters
  */
 export function decodeHtmlEntities(text: string): string {
-  const entityMap: { [key: string]: string } = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&#x27;': "'",
-    '&#x2F;': '/',
-    '&#x60;': '`',
-    '&#x3D;': '=',
-    '&nbsp;': ' ',
+  const decodeEntity = (entity: string): string => {
+    const mapped = ENTITY_MAP[entity];
+    if (mapped !== undefined) {
+      return mapped;
+    }
+
+    const decimalMatch = entity.match(/^&#(\d+);$/);
+    if (decimalMatch) {
+      const codePoint = Number(decimalMatch[1]);
+      if (Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff) {
+        try {
+          return String.fromCodePoint(codePoint);
+        } catch {
+          return entity;
+        }
+      }
+    }
+
+    const hexMatch = entity.match(/^&#x([0-9a-fA-F]+);$/);
+    if (hexMatch) {
+      const codePoint = Number.parseInt(hexMatch[1], 16);
+      if (Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff) {
+        try {
+          return String.fromCodePoint(codePoint);
+        } catch {
+          return entity;
+        }
+      }
+    }
+
+    return entity;
   };
 
-  return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
-    return entityMap[entity] || entity;
-  });
+  // Decode repeatedly to handle cases like "&amp;#39;" => "&#39;" => "'"
+  let output = text;
+  for (let i = 0; i < 3; i++) {
+    const decoded = output.replace(HTML_ENTITY_REGEX, decodeEntity);
+    if (decoded === output) {
+      break;
+    }
+    output = decoded;
+  }
+
+  return output;
+}
+
+export function htmlToPreviewText(text: string): string {
+  return normalizeCommentHtml(text, false);
 }
 
 /**
@@ -52,117 +122,7 @@ interface FormattedTextProps {
  * Handles common HTML tags: <p>, <a>, <i>, <em>, <strong>, <b>, <code>, <pre>
  */
 export function FormattedText({ text, style, lightColor, darkColor }: FormattedTextProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  // Parse HTML and convert to React Native components
-  const parseHtml = (html: string): React.ReactNode[] => {
-    const elements: React.ReactNode[] = [];
-    let keyCounter = 0;
-
-    // Simple HTML parser for common tags
-    const tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>/g;
-    let lastIndex = 0;
-    let match;
-
-    const stack: { tag: string; props: any }[] = [];
-
-    while ((match = tagRegex.exec(html)) !== null) {
-      const [fullMatch, isClosing, tagName, attributes] = match;
-      const startIndex = match.index;
-
-      // Add text before this tag
-      if (startIndex > lastIndex) {
-        const textContent = html.slice(lastIndex, startIndex);
-        if (textContent.trim()) {
-          const decodedText = decodeHtmlEntities(textContent);
-          elements.push(
-            <Text key={`text-${keyCounter++}`}>
-              {decodedText}
-            </Text>
-          );
-        }
-      }
-
-      if (isClosing) {
-        // Closing tag - pop from stack
-        const openTag = stack.pop();
-        if (openTag && openTag.tag === tagName) {
-          // Handle closing tag logic if needed
-        }
-      } else {
-        // Opening tag
-        const props: any = {};
-        
-        // Parse attributes
-        const attrRegex = /(\w+)=["']([^"']*)["']/g;
-        let attrMatch;
-        while ((attrMatch = attrRegex.exec(attributes)) !== null) {
-          const [, attrName, attrValue] = attrMatch;
-          props[attrName] = attrValue;
-        }
-
-        stack.push({ tag: tagName, props });
-
-        // Handle specific tags
-        switch (tagName.toLowerCase()) {
-          case 'p':
-            // Paragraph - add spacing
-            elements.push(
-              <Text key={`para-${keyCounter++}`} style={styles.paragraphBreak}>
-                {'\n'}
-              </Text>
-            );
-            break;
-          case 'br':
-            // Line break
-            elements.push(
-              <Text key={`br-${keyCounter++}`}>
-                {'\n'}
-              </Text>
-            );
-            break;
-          case 'a':
-            // Link - we'll handle this in the text processing
-            break;
-          case 'i':
-          case 'em':
-            // Italic - we'll handle this in the text processing
-            break;
-          case 'b':
-          case 'strong':
-            // Bold - we'll handle this in the text processing
-            break;
-          case 'code':
-            // Inline code
-            break;
-          case 'pre':
-            // Code block
-            break;
-        }
-      }
-
-      lastIndex = match.index + fullMatch.length;
-    }
-
-    // Add remaining text
-    if (lastIndex < html.length) {
-      const remainingText = html.slice(lastIndex);
-      if (remainingText.trim()) {
-        const decodedText = decodeHtmlEntities(remainingText);
-        elements.push(
-          <Text key={`text-${keyCounter++}`}>
-            {decodedText}
-          </Text>
-        );
-      }
-    }
-
-    return elements;
-  };
-
-  // Process the HTML text
-  const processedElements = parseHtml(text);
+  const processedElements = useMemo(() => parseHtml(text), [text]);
 
   return (
     <ThemedText
@@ -180,90 +140,129 @@ export function FormattedText({ text, style, lightColor, darkColor }: FormattedT
  * Handles the most common HTML tags found in HN comments
  */
 export function SimpleHtmlText({ text, style, lightColor, darkColor, numberOfLines }: FormattedTextProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const elements = useMemo(() => {
+    const processedText = normalizeCommentHtml(text, true);
 
-  // Convert HTML to plain text with basic formatting
-  let processedText = text;
+    const lines = processedText.split('\n');
+    const nextElements: React.ReactNode[] = [];
+    let keyCounter = 0;
 
-  // Decode HTML entities
-  processedText = decodeHtmlEntities(processedText);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
 
-  // Handle paragraphs
-  processedText = processedText.replace(/<p[^>]*>/gi, '\n\n');
-  processedText = processedText.replace(/<\/p>/gi, '');
+      if (line.trim() === '') {
+        nextElements.push(<Text key={`empty-${keyCounter++}`}>{'\n'}</Text>);
+      } else {
+        const lineElements = processInlineFormatting(line, keyCounter);
+        nextElements.push(...lineElements);
+        keyCounter += lineElements.length;
 
-  // Handle line breaks
-  processedText = processedText.replace(/<br\s*\/?>/gi, '\n');
-
-  // Handle links - extract URL and make it clickable
-  processedText = processedText.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, (match, url, linkText) => {
-    return linkText || url; // Use link text if available, otherwise use URL
-  });
-
-  // Handle italics
-  processedText = processedText.replace(/<(i|em)[^>]*>([^<]*)<\/(i|em)>/gi, (match, openTag, content, closeTag) => {
-    return `*${content}*`; // Convert to markdown-style italics
-  });
-
-  // Handle bold
-  processedText = processedText.replace(/<(b|strong)[^>]*>([^<]*)<\/(b|strong)>/gi, (match, openTag, content, closeTag) => {
-    return `**${content}**`; // Convert to markdown-style bold
-  });
-
-  // Handle code
-  processedText = processedText.replace(/<code[^>]*>([^<]*)<\/code>/gi, (match, content) => {
-    return `\`${content}\``; // Convert to markdown-style code
-  });
-
-  // Remove any remaining HTML tags
-  processedText = processedText.replace(/<[^>]*>/g, '');
-
-  // Clean up extra whitespace
-  processedText = processedText.replace(/\n\s*\n\s*\n/g, '\n\n');
-  processedText = processedText.trim();
-
-  // Split into lines and process for formatting
-  const lines = processedText.split('\n');
-  const elements: React.ReactNode[] = [];
-  let keyCounter = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    if (line.trim() === '') {
-      // Empty line - add paragraph spacing
-      elements.push(
-        <Text key={`empty-${keyCounter++}`}>
-          {'\n'}
-        </Text>
-      );
-    } else {
-      // Process line for inline formatting
-      const lineElements = processInlineFormatting(line, keyCounter);
-      elements.push(...lineElements);
-      keyCounter += lineElements.length;
-      
-      // Add line break if not last line
-      if (i < lines.length - 1) {
-        elements.push(
-          <Text key={`break-${keyCounter++}`}>
-            {'\n'}
-          </Text>
-        );
+        if (i < lines.length - 1) {
+          nextElements.push(<Text key={`break-${keyCounter++}`}>{'\n'}</Text>);
+        }
       }
     }
-  }
+
+    return nextElements;
+  }, [text]);
 
   return (
     <ThemedText
       style={[styles.container, style]}
       lightColor={lightColor}
       darkColor={darkColor}
+      numberOfLines={numberOfLines}
     >
       {elements}
     </ThemedText>
   );
+}
+
+function normalizeCommentHtml(text: string, preserveFormattingMarkers: boolean): string {
+  let processedText = decodeHtmlEntities(text);
+  processedText = processedText.replace(PARAGRAPH_OPEN_REGEX, '\n\n');
+  processedText = processedText.replace(PARAGRAPH_CLOSE_REGEX, '');
+  processedText = processedText.replace(LINE_BREAK_REGEX, '\n');
+  processedText = processedText.replace(LINK_TAG_REGEX, (_match, url, linkText) => linkText || url);
+
+  if (preserveFormattingMarkers) {
+    processedText = processedText.replace(ITALIC_TAG_REGEX, (_match, _openTag, content) => `*${content}*`);
+    processedText = processedText.replace(BOLD_TAG_REGEX, (_match, _openTag, content) => `**${content}**`);
+    processedText = processedText.replace(CODE_TAG_REGEX, (_match, content) => `\`${content}\``);
+  } else {
+    processedText = processedText.replace(ITALIC_TAG_REGEX, (_match, _openTag, content) => content);
+    processedText = processedText.replace(BOLD_TAG_REGEX, (_match, _openTag, content) => content);
+    processedText = processedText.replace(CODE_TAG_REGEX, (_match, content) => content);
+  }
+
+  processedText = processedText.replace(REMAINING_TAG_REGEX, '');
+  processedText = processedText.replace(EXTRA_LINE_BREAK_REGEX, '\n\n');
+  return processedText.trim();
+}
+
+function parseHtml(html: string): React.ReactNode[] {
+  const elements: React.ReactNode[] = [];
+  let keyCounter = 0;
+
+  const tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  const stack: { tag: string; props: Record<string, string> }[] = [];
+
+  while ((match = tagRegex.exec(html)) !== null) {
+    const [fullMatch, isClosing, tagName, attributes] = match;
+    const startIndex = match.index;
+
+    if (startIndex > lastIndex) {
+      const textContent = html.slice(lastIndex, startIndex);
+      if (textContent.trim()) {
+        elements.push(<Text key={`text-${keyCounter++}`}>{decodeHtmlEntities(textContent)}</Text>);
+      }
+    }
+
+    if (isClosing) {
+      const openTag = stack.pop();
+      if (openTag && openTag.tag === tagName) {
+        // no-op for this simple parser
+      }
+    } else {
+      const props: Record<string, string> = {};
+      const attrRegex = /(\w+)=["']([^"']*)["']/g;
+      let attrMatch: RegExpExecArray | null;
+      while ((attrMatch = attrRegex.exec(attributes)) !== null) {
+        const [, attrName, attrValue] = attrMatch;
+        props[attrName] = attrValue;
+      }
+
+      stack.push({ tag: tagName, props });
+
+      switch (tagName.toLowerCase()) {
+        case 'p':
+          elements.push(
+            <Text key={`para-${keyCounter++}`} style={styles.paragraphBreak}>
+              {'\n'}
+            </Text>
+          );
+          break;
+        case 'br':
+          elements.push(<Text key={`br-${keyCounter++}`}>{'\n'}</Text>);
+          break;
+        default:
+          break;
+      }
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  if (lastIndex < html.length) {
+    const remainingText = html.slice(lastIndex);
+    if (remainingText.trim()) {
+      elements.push(<Text key={`text-${keyCounter++}`}>{decodeHtmlEntities(remainingText)}</Text>);
+    }
+  }
+
+  return elements;
 }
 
 /**
@@ -272,61 +271,39 @@ export function SimpleHtmlText({ text, style, lightColor, darkColor, numberOfLin
 function processInlineFormatting(text: string, startKey: number): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let keyCounter = startKey;
-
-  // URL regex
-  const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
-  
-  // Find all URLs
-  const urlMatches: { url: string; start: number; end: number }[] = [];
-  let match;
-  while ((match = urlRegex.exec(text)) !== null) {
-    urlMatches.push({
-      url: match[1],
-      start: match.index,
-      end: match.index + match[1].length
-    });
-  }
-
-  // Sort by start position
-  urlMatches.sort((a, b) => a.start - b.start);
-
   let lastEnd = 0;
-  for (const urlMatch of urlMatches) {
-    // Add text before URL
-    if (urlMatch.start > lastEnd) {
-      const beforeText = text.slice(lastEnd, urlMatch.start);
+
+  URL_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = URL_REGEX.exec(text)) !== null) {
+    const url = match[1];
+    const start = match.index;
+    const end = start + url.length;
+
+    if (start > lastEnd) {
+      const beforeText = text.slice(lastEnd, start);
       if (beforeText) {
-        elements.push(
-          <Text key={`text-${keyCounter++}`}>
-            {processMarkdownFormatting(beforeText)}
-          </Text>
-        );
+        elements.push(<Text key={`text-${keyCounter++}`}>{processMarkdownFormatting(beforeText)}</Text>);
       }
     }
 
-    // Add clickable URL
     elements.push(
       <Text
         key={`url-${keyCounter++}`}
         style={styles.link}
-        onPress={() => handleLinkPress(urlMatch.url)}
+        onPress={() => handleLinkPress(url)}
       >
-        {urlMatch.url}
+        {url}
       </Text>
     );
 
-    lastEnd = urlMatch.end;
+    lastEnd = end;
   }
 
-  // Add remaining text
   if (lastEnd < text.length) {
     const remainingText = text.slice(lastEnd);
     if (remainingText) {
-      elements.push(
-        <Text key={`text-${keyCounter++}`}>
-          {processMarkdownFormatting(remainingText)}
-        </Text>
-      );
+      elements.push(<Text key={`text-${keyCounter++}`}>{processMarkdownFormatting(remainingText)}</Text>);
     }
   }
 
@@ -340,32 +317,15 @@ function processMarkdownFormatting(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let keyCounter = 0;
 
-  // Handle bold (**text**)
-  const boldRegex = /\*\*([^*]+)\*\*/g;
-  let processedText = text.replace(boldRegex, (match, content) => {
-    return `__BOLD_START__${content}__BOLD_END__`;
-  });
+  let processedText = text.replace(BOLD_REGEX, (_match, content) => `__BOLD_START__${content}__BOLD_END__`);
+  processedText = processedText.replace(ITALIC_REGEX, (_match, content) => `__ITALIC_START__${content}__ITALIC_END__`);
+  processedText = processedText.replace(INLINE_CODE_REGEX, (_match, content) => `__CODE_START__${content}__CODE_END__`);
 
-  // Handle italics (*text*)
-  const italicRegex = /\*([^*]+)\*/g;
-  processedText = processedText.replace(italicRegex, (match, content) => {
-    return `__ITALIC_START__${content}__ITALIC_END__`;
-  });
-
-  // Handle code (`text`)
-  const codeRegex = /`([^`]+)`/g;
-  processedText = processedText.replace(codeRegex, (match, content) => {
-    return `__CODE_START__${content}__CODE_END__`;
-  });
-
-  // Split by markers and process
-  const parts = processedText.split(/(__(?:BOLD|ITALIC|CODE)_(?:START|END)__)/g);
-  
+  const parts = processedText.split(MARKER_SPLIT_REGEX);
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    
+
     if (part === '__BOLD_START__') {
-      // Next part is bold content
       i++;
       const content = parts[i];
       elements.push(
@@ -373,9 +333,8 @@ function processMarkdownFormatting(text: string): React.ReactNode[] {
           {content}
         </Text>
       );
-      i++; // Skip __BOLD_END__
+      i++;
     } else if (part === '__ITALIC_START__') {
-      // Next part is italic content
       i++;
       const content = parts[i];
       elements.push(
@@ -383,9 +342,8 @@ function processMarkdownFormatting(text: string): React.ReactNode[] {
           {content}
         </Text>
       );
-      i++; // Skip __ITALIC_END__
+      i++;
     } else if (part === '__CODE_START__') {
-      // Next part is code content
       i++;
       const content = parts[i];
       elements.push(
@@ -393,14 +351,9 @@ function processMarkdownFormatting(text: string): React.ReactNode[] {
           {content}
         </Text>
       );
-      i++; // Skip __CODE_END__
+      i++;
     } else if (part) {
-      // Regular text
-      elements.push(
-        <Text key={`text-${keyCounter++}`}>
-          {part}
-        </Text>
-      );
+      elements.push(<Text key={`text-${keyCounter++}`}>{part}</Text>);
     }
   }
 
@@ -420,16 +373,15 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   bold: {
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   italic: {
     fontStyle: 'italic',
   },
   inlineCode: {
     fontFamily: 'monospace',
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: '#f5f5f5',
     paddingHorizontal: 2,
-    paddingVertical: 1,
     borderRadius: 2,
   },
 });

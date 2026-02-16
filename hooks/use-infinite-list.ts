@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface InfiniteListState<T> {
   items: T[];
@@ -41,8 +41,20 @@ export function useInfiniteList<T>(
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(true);
+  const isMountedRef = useRef(true);
+  const activeRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      activeRequestIdRef.current += 1;
+    };
+  }, []);
 
   const fetchItems = useCallback(async (page: number = 0, isRefresh: boolean = false) => {
+    const requestId = ++activeRequestIdRef.current;
+
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -55,6 +67,7 @@ export function useInfiniteList<T>(
       setError(null);
       
       const result = await fetchFunction(page, pageSize);
+      if (!isMountedRef.current || requestId !== activeRequestIdRef.current) return;
       
       if (page === 0 || isRefresh) {
         setItems(result.items);
@@ -67,10 +80,12 @@ export function useInfiniteList<T>(
       setCurrentPage(page);
       
     } catch (err) {
+      if (!isMountedRef.current || requestId !== activeRequestIdRef.current) return;
       const errorMessage = err instanceof Error ? err.message : 'Failed to load items';
       setError(errorMessage);
       console.error('Error fetching items:', err);
     } finally {
+      if (!isMountedRef.current || requestId !== activeRequestIdRef.current) return;
       setLoading(false);
       setRefreshing(false);
       setLoadingMore(false);
@@ -88,6 +103,7 @@ export function useInfiniteList<T>(
   }, [fetchItems, currentPage, hasNextPage, loadingMore]);
 
   const reset = useCallback(() => {
+    activeRequestIdRef.current += 1;
     setItems([]);
     setLoading(true);
     setRefreshing(false);
@@ -104,9 +120,15 @@ export function useInfiniteList<T>(
         fetchItems(0, true);
       }, debounceMs);
 
-      return () => clearTimeout(timeoutId);
+      return () => {
+        clearTimeout(timeoutId);
+        activeRequestIdRef.current += 1;
+      };
     } else {
       fetchItems();
+      return () => {
+        activeRequestIdRef.current += 1;
+      };
     }
   }, [fetchItems, debounceMs]);
 

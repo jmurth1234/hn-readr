@@ -181,6 +181,7 @@ export interface Updates {
 
 export interface CommentNode extends Comment {
   children: CommentNode[];
+  replyCount: number;
 }
 
 /** Algolia HN Search types (subset) */
@@ -198,6 +199,7 @@ export interface AlgoliaHit {
   story_id?: number | null;
   story_title?: string | null;
   story_url?: string | null;
+  parent_id?: number;
   _tags?: string[];
   [k: string]: any;
 }
@@ -236,6 +238,8 @@ export class HackerNewsClient {
   private cache: LruCache<any>;
   private sem: Semaphore;
   private defaultPageSize: number;
+  private storyIdsCache = new Map<StoryFeedKind, { ids: number[]; exp: number }>();
+  private storyIdsCacheTtlMs: number;
 
   constructor(opts: ClientOptions = {}) {
     this.base = (opts.firebaseBaseUrl ?? 'https://hacker-news.firebaseio.com/v0').replace(/\/+$/, '');
@@ -249,6 +253,7 @@ export class HackerNewsClient {
     this.cache = new LruCache<any>(opts.cacheMaxEntries ?? 2000, opts.cacheTtlMs ?? 30_000);
     this.sem = new Semaphore(Math.max(1, opts.maxConcurrency ?? 8));
     this.defaultPageSize = opts.defaultPageSize ?? 30;
+    this.storyIdsCacheTtlMs = Math.max(10_000, opts.cacheTtlMs ?? 30_000);
   }
 
   /** Low-level GET with caching and concurrency guard */
@@ -279,11 +284,21 @@ export class HackerNewsClient {
 
   /** IDs that recently changed (items) and usernames that changed (profiles) */
   async getUpdates(): Promise<Updates> {
-    return this.getJson<Updates>('updates.json');
+    const updates = await this.getJson<Updates>('updates.json');
+    if (updates.items.length > 0) {
+      this.storyIdsCache.clear();
+    }
+    return updates;
   }
 
   /** Raw list of story IDs for a given feed */
   async getStoryIds(kind: StoryFeedKind): Promise<number[]> {
+    const now = Date.now();
+    const cached = this.storyIdsCache.get(kind);
+    if (cached && cached.exp > now) {
+      return cached.ids;
+    }
+
     const map: Record<StoryFeedKind, string> = {
       top: 'topstories.json',
       new: 'newstories.json',
@@ -292,7 +307,12 @@ export class HackerNewsClient {
       show: 'showstories.json',
       job: 'jobstories.json',
     };
-    return this.getJson<number[]>(map[kind]);
+    const ids = await this.getJson<number[]>(map[kind]);
+    this.storyIdsCache.set(kind, {
+      ids,
+      exp: Date.now() + this.storyIdsCacheTtlMs,
+    });
+    return ids;
   }
 
   /**
@@ -346,11 +366,12 @@ export class HackerNewsClient {
       if (!item || item.type !== 'comment') return null;
       visited.add(id);
 
-      const node: CommentNode = { ...(item as Comment), children: [] };
+      const node: CommentNode = { ...(item as Comment), children: [], replyCount: 0 };
       if (item.kids && item.kids.length && (opts?.depth === undefined || depth < (opts.depth))) {
         const kids = await Promise.all(item.kids.map(kid => build(kid, depth + 1)));
         node.children = kids.filter(Boolean) as CommentNode[];
       }
+      node.replyCount = node.children.reduce((total, child) => total + 1 + child.replyCount, 0);
       return node;
     };
 
@@ -372,7 +393,9 @@ export class HackerNewsClient {
         time: root.time,
         text: (root as Story).title ?? '',
         children: children.filter(Boolean) as CommentNode[],
+        replyCount: 0,
       };
+      pseudo.replyCount = pseudo.children.reduce((total, child) => total + 1 + child.replyCount, 0);
       return pseudo;
     }
 
@@ -383,6 +406,7 @@ export class HackerNewsClient {
       time: root.time,
       text: (root as Story).title ?? '',
       children: [],
+      replyCount: 0,
     };
   }
 
@@ -484,6 +508,65 @@ export class HackerNewsClient {
     return this.listStories('top', { page, pageSize, includeItems: true });
   }
 
+  /**
+   * Fast comment tree via Algolia bulk fetch.
+   * Falls back to getCommentsTree() on failure.
+   */
+  async getCommentsTreeFast(storyId: number): Promise<CommentNode | null> {
+    try {
+      return await this.getCommentsTreeViaAlgolia(storyId);
+    } catch (e) {
+      console.warn('Algolia comment fetch failed, falling back to Firebase:', e);
+      return this.getCommentsTree(storyId, { maxNodes: 5000 });
+    }
+  }
+
+  /** Fetch all comments for a story via Algolia and reconstruct the tree */
+  private async getCommentsTreeViaAlgolia(storyId: number): Promise<CommentNode | null> {
+    const { algoliaHitsToCommentTree } = await import('@/lib/comment-tree');
+
+    // Fetch story from Firebase for kids[] ordering
+    const story = await this.getItem<Story>(storyId);
+    if (!story) return null;
+
+    // Fetch all comments via Algolia
+    const allHits: AlgoliaHit[] = [];
+    let page = 0;
+    const maxPages = 5; // Cap at 5000 comments (5 pages * 1000)
+
+    while (page < maxPages) {
+      const res = await this.search({
+        tags: `comment,story_${storyId}`,
+        hitsPerPage: 1000,
+        page,
+      });
+      allHits.push(...res.hits);
+
+      if (page + 1 >= res.nbPages) break;
+      page++;
+    }
+
+    if (allHits.length === 0) {
+      // Return empty pseudo-root
+      return {
+        id: storyId,
+        type: 'comment',
+        by: story.by,
+        time: story.time,
+        text: (story as Story).title ?? '',
+        children: [],
+        replyCount: 0,
+      };
+    }
+
+    return algoliaHitsToCommentTree(
+      allHits,
+      storyId,
+      story.kids,
+      { by: story.by, time: story.time, title: (story as Story).title },
+    );
+  }
+
   /** Given a story id, return the story and a fully fetched comment tree */
   async storyWithComments(storyId: number, opts?: { depth?: number; maxNodes?: number }) {
     const story = await this.getItem<Story>(storyId);
@@ -493,5 +576,8 @@ export class HackerNewsClient {
   }
 
   /** Clear the internal cache (e.g., after an invalidate action) */
-  clearCache() { this.cache.clear(); }
+  clearCache() {
+    this.cache.clear();
+    this.storyIdsCache.clear();
+  }
 }

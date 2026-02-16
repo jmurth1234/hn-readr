@@ -2,15 +2,16 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CommentItem } from '@/components/comment-item';
+import { CommentThreadList } from '@/components/comment-thread-list';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { createPressableStyle, createRippleConfig, getActivityIndicatorColor } from '@/constants/platform-styles';
 import { useHNClient } from '@/contexts/hn-client-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { replaceCommentSubtree } from '@/lib/comment-tree';
 import { CommentNode, Story } from '@/lib/hn-api';
 import { extractDomain, formatNumber, formatTimeAgo } from '@/lib/utils';
 
@@ -24,7 +25,6 @@ export default function StoryDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const borderColor = useThemeColor({}, 'border');
   const { id } = useLocalSearchParams<{ id: string }>();
   const storyId = parseInt(id || '0', 10);
@@ -52,10 +52,7 @@ export default function StoryDetailScreen() {
   const fetchComments = useCallback(async () => {
     try {
       setCommentsLoading(true);
-      const tree = await hnClient.getCommentsTree(storyId, {
-        depth: 3, // Limit comment depth for performance
-        maxNodes: 1000, // Reasonable limit
-      });
+      const tree = await hnClient.getCommentsTreeFast(storyId);
       setCommentTree(tree);
     } catch (err) {
       console.error('Error fetching comments:', err);
@@ -102,7 +99,7 @@ export default function StoryDetailScreen() {
     router.back();
   };
 
-  const handleShowMoreComments = useCallback(async (commentId: number, remainingCount: number) => {
+  const handleShowMoreComments = useCallback(async (commentId: number) => {
     try {
       // Fetch the full comment tree for this specific comment
       const fullCommentTree = await hnClient.getCommentsTree(commentId, {
@@ -112,21 +109,7 @@ export default function StoryDetailScreen() {
 
       if (fullCommentTree) {
         // Update the comment tree to include the expanded comments
-        setCommentTree(prevTree => {
-          if (!prevTree) return prevTree;
-          
-          const updateCommentTree = (node: CommentNode): CommentNode => {
-            if (node.id === commentId) {
-              return fullCommentTree;
-            }
-            return {
-              ...node,
-              children: node.children.map(updateCommentTree),
-            };
-          };
-          
-          return updateCommentTree(prevTree);
-        });
+        setCommentTree((prevTree) => (prevTree ? replaceCommentSubtree(prevTree, commentId, fullCommentTree) : prevTree));
       }
     } catch (error) {
       console.error('Failed to load more comments:', error);
@@ -174,146 +157,111 @@ export default function StoryDetailScreen() {
   const author = story.by || 'unknown';
   const timeAgo = story.time ? formatTimeAgo(story.time) : 'unknown';
 
+  const storyHeader = (
+    <ThemedView
+      style={[
+        styles.storyHeader,
+        { borderBottomColor: borderColor }
+      ]}
+      lightColor="#fff"
+      darkColor="#151718"
+    >
+      <ThemedText style={styles.title}>{story.title}</ThemedText>
+      
+    {/* Metadata */}
+    <ThemedView style={styles.metadata}>
+      <ThemedText 
+        style={styles.metadataText}
+        lightColor="#666"
+        darkColor="#9BA1A6"
+      >
+        {formatNumber(points)} points
+      </ThemedText>
+      <ThemedText 
+        style={styles.separator}
+        lightColor="#999"
+        darkColor="#666"
+      >
+        •
+      </ThemedText>
+      <ThemedText 
+        style={styles.metadataText}
+        lightColor="#666"
+        darkColor="#9BA1A6"
+      >
+        by {author}
+      </ThemedText>
+      <ThemedText 
+        style={styles.separator}
+        lightColor="#999"
+        darkColor="#666"
+      >
+        •
+      </ThemedText>
+      <ThemedText 
+        style={styles.metadataText}
+        lightColor="#666"
+        darkColor="#9BA1A6"
+      >
+        {timeAgo}
+      </ThemedText>
+      <ThemedText 
+        style={styles.separator}
+        lightColor="#999"
+        darkColor="#666"
+      >
+        •
+      </ThemedText>
+      <ThemedText 
+        style={styles.metadataText}
+        lightColor="#666"
+        darkColor="#9BA1A6"
+      >
+        {formatNumber(commentCount)} comments
+      </ThemedText>
+    </ThemedView>
+
+      {/* URL/Domain */}
+      {story.url && (
+        <ThemedView 
+          style={styles.urlContainer}
+          lightColor="#f8f9fa"
+          darkColor="#2a2a2a"
+        >
+          <Pressable 
+            onPress={handleUrlPress}
+            style={createPressableStyle(styles.urlButton)}
+            android_ripple={createRippleConfig()}
+          >
+          <ThemedText 
+            style={styles.url} 
+            numberOfLines={1}
+            lightColor="#0066cc"
+            darkColor="#4A9EFF"
+          >
+            {story.url}
+          </ThemedText>
+          <ThemedText style={styles.domain}>
+            {domain}
+          </ThemedText>
+          </Pressable>
+        </ThemedView>
+      )}
+    </ThemedView>
+  );
+
   return (
     <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Story Header */}
-        <ThemedView 
-          style={[
-            styles.storyHeader,
-            { borderBottomColor: borderColor }
-          ]}
-          lightColor="#fff"
-          darkColor="#151718"
-        >
-          <ThemedText style={styles.title}>{story.title}</ThemedText>
-          
-        {/* Metadata */}
-        <ThemedView style={styles.metadata}>
-          <ThemedText 
-            style={styles.metadataText}
-            lightColor="#666"
-            darkColor="#9BA1A6"
-          >
-            {formatNumber(points)} points
-          </ThemedText>
-          <ThemedText 
-            style={styles.separator}
-            lightColor="#999"
-            darkColor="#666"
-          >
-            •
-          </ThemedText>
-          <ThemedText 
-            style={styles.metadataText}
-            lightColor="#666"
-            darkColor="#9BA1A6"
-          >
-            by {author}
-          </ThemedText>
-          <ThemedText 
-            style={styles.separator}
-            lightColor="#999"
-            darkColor="#666"
-          >
-            •
-          </ThemedText>
-          <ThemedText 
-            style={styles.metadataText}
-            lightColor="#666"
-            darkColor="#9BA1A6"
-          >
-            {timeAgo}
-          </ThemedText>
-          <ThemedText 
-            style={styles.separator}
-            lightColor="#999"
-            darkColor="#666"
-          >
-            •
-          </ThemedText>
-          <ThemedText 
-            style={styles.metadataText}
-            lightColor="#666"
-            darkColor="#9BA1A6"
-          >
-            {formatNumber(commentCount)} comments
-          </ThemedText>
-        </ThemedView>
-
-          {/* URL/Domain */}
-          {story.url && (
-            <ThemedView 
-              style={styles.urlContainer}
-              lightColor="#f8f9fa"
-              darkColor="#2a2a2a"
-            >
-              <Pressable 
-                onPress={handleUrlPress}
-                style={createPressableStyle(styles.urlButton)}
-                android_ripple={createRippleConfig()}
-              >
-              <ThemedText 
-                style={styles.url} 
-                numberOfLines={1}
-                lightColor="#0066cc"
-                darkColor="#4A9EFF"
-              >
-                {story.url}
-              </ThemedText>
-              <ThemedText style={styles.domain}>
-                {domain}
-              </ThemedText>
-              </Pressable>
-            </ThemedView>
-          )}
-        </ThemedView>
-
-        {/* Comments Section */}
-        <ThemedView style={styles.commentsSection}>
-          <ThemedText style={styles.commentsTitle}>
-            Comments ({formatNumber(commentCount)})
-          </ThemedText>
-          
-          {commentsLoading ? (
-            <ThemedView style={styles.commentsLoading}>
-              <ActivityIndicator 
-                size="small" 
-                color={getActivityIndicatorColor(colorScheme || 'light')} 
-              />
-              <ThemedText 
-                style={styles.loadingText}
-                lightColor="#666"
-                darkColor="#9BA1A6"
-              >
-                Loading comments...
-              </ThemedText>
-            </ThemedView>
-          ) : commentTree && commentTree.children.length > 0 ? (
-            <ThemedView style={styles.commentsList}>
-              {commentTree.children.map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  depth={0}
-                  maxDepth={6}
-                  onShowMore={handleShowMoreComments}
-                />
-              ))}
-            </ThemedView>
-          ) : (
-            <ThemedView style={styles.noComments}>
-              <ThemedText 
-                style={styles.noCommentsText}
-                lightColor="#666"
-                darkColor="#9BA1A6"
-              >
-                No comments yet
-              </ThemedText>
-            </ThemedView>
-          )}
-        </ThemedView>
-      </ScrollView>
+      <CommentThreadList
+        commentTree={commentTree}
+        commentsLoading={commentsLoading}
+        commentCount={commentCount}
+        maxDepth={6}
+        onShowMore={handleShowMoreComments}
+        header={storyHeader}
+        contentContainerStyle={styles.listContentContainer}
+        showsVerticalScrollIndicator={false}
+      />
     </ThemedView>
   );
 }
@@ -355,8 +303,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
-  scrollView: {
-    flex: 1,
+  listContentContainer: {
+    paddingBottom: 24,
   },
   storyHeader: {
     padding: 16,
@@ -401,28 +349,4 @@ const styles = StyleSheet.create({
     color: '#ff6600',
     fontWeight: '500',
   },
-  commentsSection: {
-    padding: 16,
-  },
-  commentsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  commentsList: {
-    // Comments are rendered with their own styling
-  },
-  noComments: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  noCommentsText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-  },
-  commentsLoading: {
-    padding: 20,
-    alignItems: 'center',
-  },
 });
-

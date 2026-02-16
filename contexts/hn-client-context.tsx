@@ -11,12 +11,9 @@ export function HNClientProvider({ children }: { children: ReactNode }) {
   const client = useMemo(
     () =>
       new HackerNewsClient({
-        maxConcurrency: 5,
-        cache: {
-          maxEntries: 500,
-          ttl: 5 * 60 * 1000, // 5 minutes
-        },
-        enablePolling: false, // Will enable per-component as needed
+        maxConcurrency: 15,
+        cacheMaxEntries: 500,
+        cacheTtlMs: 5 * 60 * 1000,
       }),
     [],
   );

@@ -1,53 +1,53 @@
 import * as Haptics from 'expo-haptics';
-import React, { memo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
+import React, { memo, useCallback, useMemo } from 'react';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { createPressableStyle, createRippleConfig } from '@/constants/platform-styles';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { CommentNode } from '@/lib/hn-api';
-import { SimpleHtmlText } from '@/lib/hn-text-formatter';
+import { htmlToPreviewText, SimpleHtmlText } from '@/lib/hn-text-formatter';
 import { formatTimeAgo } from '@/lib/utils';
 
 export interface CommentItemProps {
   comment: CommentNode;
   depth: number;
   maxDepth?: number;
+  isCollapsed: boolean;
+  onToggleCollapse: (commentId: number) => void;
   onShowMore?: (commentId: number, remainingCount: number) => void;
 }
 
-export const CommentItem = memo(function CommentItem({ comment, depth, maxDepth = 6, onShowMore }: CommentItemProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+export const CommentItem = memo(function CommentItem({
+  comment,
+  depth,
+  maxDepth = 6,
+  isCollapsed,
+  onToggleCollapse,
+  onShowMore,
+}: CommentItemProps) {
   const borderColor = useThemeColor({}, 'border');
 
-  const handleToggleCollapse = () => {
+  const handleToggleCollapse = useCallback(() => {
     // Add haptic feedback
     if (Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    setIsCollapsed(!isCollapsed);
-  };
+    onToggleCollapse(comment.id);
+  }, [comment.id, onToggleCollapse]);
 
-  const getPreviewText = (text: string): string => {
-    const firstLine = text.split('\n')[0];
-    return firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
-  };
-
-  const getReplyCount = (comment: CommentNode): number => {
-    let count = 0;
-    const countReplies = (node: CommentNode) => {
-      count += node.children.length;
-      node.children.forEach(countReplies);
-    };
-    countReplies(comment);
-    return count;
-  };
+  const previewText = useMemo(() => {
+    if (!comment.text) {
+      return '';
+    }
+    const formattedText = htmlToPreviewText(comment.text);
+    const firstNonEmptyLine = formattedText.split('\n').find((line) => line.trim().length > 0) ?? '';
+    return firstNonEmptyLine.length > 100 ? `${firstNonEmptyLine.substring(0, 100)}...` : firstNonEmptyLine;
+  }, [comment.text]);
 
   const shouldShowMoreButton = depth >= maxDepth && comment.children.length > 0;
-  const replyCount = getReplyCount(comment);
+  const replyCount = comment.replyCount ?? 0;
   const indentLevel = Math.min(depth, maxDepth);
 
   return (
@@ -151,7 +151,7 @@ export const CommentItem = memo(function CommentItem({ comment, depth, maxDepth 
             darkColor="#9BA1A6"
             numberOfLines={1}
           >
-            {getPreviewText(comment.text)}
+            {previewText}
           </ThemedText>
         </ThemedView>
       )}
@@ -173,20 +173,6 @@ export const CommentItem = memo(function CommentItem({ comment, depth, maxDepth 
         </Pressable>
       )}
 
-      {/* Child Comments */}
-      {!isCollapsed && comment.children.length > 0 && (
-        <ThemedView style={styles.children}>
-          {comment.children.map((child) => (
-            <CommentItem
-              key={child.id}
-              comment={child}
-              depth={depth + 1}
-              maxDepth={maxDepth}
-              onShowMore={onShowMore}
-            />
-          ))}
-        </ThemedView>
-      )}
     </ThemedView>
   );
 });
@@ -260,8 +246,5 @@ const styles = StyleSheet.create({
   showMoreText: {
     fontSize: 13,
     fontWeight: '500',
-  },
-  children: {
-    // Children are rendered with their own indentation
   },
 });
