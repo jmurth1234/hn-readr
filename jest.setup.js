@@ -2,6 +2,9 @@
 // Note: jest-native is deprecated, matchers are now built into react-native-testing-library
 // No need to import extend-expect anymore
 
+// Define __DEV__ for react-native
+globalThis.__DEV__ = true;
+
 // Mock expo-router
 jest.mock('expo-router', () => ({
   router: {
