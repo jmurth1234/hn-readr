@@ -105,11 +105,11 @@ export function SearchList({
       // In mobile mode, navigate to story detail screen
       // For stories, navigate to story detail
       if (hit._tags?.includes('story')) {
-        router.push(`/story/${hit.objectID}` as any);
+        router.push(`/story/${hit.objectID}` as `/${string}`);
       } 
       // For comments, navigate to the parent story
       else if (hit._tags?.includes('comment') && hit.story_id) {
-        router.push(`/story/${hit.story_id}` as any);
+        router.push(`/story/${hit.story_id}` as `/${string}`);
       }
     }
   }, [router, isTablet, onStorySelect]);

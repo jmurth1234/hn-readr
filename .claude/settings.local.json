@@ -8,7 +8,8 @@
       "Bash(xargs:*)",
       "Bash(yarn test:*)",
       "Bash(node -e:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(yarn lint:*)"
     ],
     "deny": [],
     "ask": []

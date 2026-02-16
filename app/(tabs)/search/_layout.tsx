@@ -1,14 +1,14 @@
 import { useColorScheme } from '@/hooks/use-color-scheme.web';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { NativeSyntheticEvent, TextInputChangeEventData } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 
 export default function SearchLayout() {
   const router = useRouter();
-  const { query } = useLocalSearchParams<{ query?: string }>();
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const handleSearchChange = (event: any) => {
+  const handleSearchChange = (event: NativeSyntheticEvent<TextInputChangeEventData>) => {
     const text = event.nativeEvent.text || '';
     // Update the URL with the search query
     router.setParams({ query: text });

@@ -22,7 +22,7 @@ export const SearchResultItem = memo(function SearchResultItem({ hit, onPress, i
   // For comments, show the parent story info
   const showParentStory = isComment && hit.story_title && hit.story_id;
 
-  const handlePress = (data: NormalizedItemData) => {
+  const handlePress = (_data: NormalizedItemData) => {
     // Convert back to original hit format for the callback
     onPress(hit);
   };

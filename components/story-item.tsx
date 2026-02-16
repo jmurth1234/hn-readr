@@ -12,7 +12,7 @@ export interface StoryItemProps {
 export const StoryItem = memo(function StoryItem({ story, onPress, isSelected = false }: StoryItemProps) {
   const normalizedData = normalizeStory(story);
 
-  const handlePress = (data: NormalizedItemData) => {
+  const handlePress = (_data: NormalizedItemData) => {
     // Convert back to original story format for the callback
     onPress(story);
   };

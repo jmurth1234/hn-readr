@@ -19,7 +19,7 @@ export interface StoryListProps {
   onStorySelect?: (story: Story) => void;
 }
 
-export function StoryList({ feedType, title, selectedStoryId, isTablet = false, onStorySelect }: StoryListProps) {
+export function StoryList({ feedType, selectedStoryId, isTablet = false, onStorySelect }: StoryListProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -54,7 +54,7 @@ export function StoryList({ feedType, title, selectedStoryId, isTablet = false, 
       onStorySelect(story);
     } else {
       // In mobile mode, navigate to story detail screen
-      router.push(`/story/${story.id}` as any);
+      router.push(`/story/${story.id}` as `/${string}`);
     }
   }, [router, isTablet, onStorySelect]);
 

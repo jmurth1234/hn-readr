@@ -1,8 +1,8 @@
 jest.mock('react-native', () => ({
-  Platform: { OS: 'ios', select: (opts: any) => opts.ios ?? opts.default },
+  Platform: { OS: 'ios', select: (opts: Record<string, unknown>) => opts.ios ?? opts.default },
   Linking: { openURL: jest.fn() },
   Pressable: 'Pressable',
-  StyleSheet: { create: (styles: any) => styles, hairlineWidth: 1 },
+  StyleSheet: { create: (styles: Record<string, unknown>) => styles, hairlineWidth: 1 },
   Text: 'Text',
 }));
 
@@ -19,7 +19,7 @@ jest.mock('expo-web-browser', () => ({
 jest.mock('@/components/themed-text', () => ({ ThemedText: 'ThemedText' }));
 jest.mock('@/components/themed-view', () => ({ ThemedView: 'ThemedView' }));
 jest.mock('@/constants/platform-styles', () => ({
-  createPressableStyle: (s: any) => s,
+  createPressableStyle: (s: unknown) => s,
   createRippleConfig: () => null,
 }));
 jest.mock('@/hooks/use-theme-color', () => ({
@@ -32,7 +32,9 @@ jest.mock('@/lib/utils', () => ({
   formatTimeAgo: (time: number) => `${time}s ago`,
 }));
 
+// eslint-disable-next-line import/first
 import { AlgoliaHit, Story } from '@/lib/hn-api';
+// eslint-disable-next-line import/first
 import { normalizeAlgoliaHit, normalizeStory } from '../base-item';
 
 describe('normalizeStory', () => {
