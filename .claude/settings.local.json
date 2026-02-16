@@ -4,7 +4,11 @@
       "Bash(cat:*)",
       "Bash(npx tsc:*)",
       "Bash(npm install:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(xargs:*)",
+      "Bash(yarn test:*)",
+      "Bash(node -e:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

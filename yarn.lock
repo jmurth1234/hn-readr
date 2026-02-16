@@ -4254,13 +4254,6 @@ expo-status-bar@~3.0.8:
   dependencies:
     react-native-is-edge-to-edge "^1.2.1"
 
-expo-symbols@~1.0.7:
-  version "1.0.8"
-  resolved "https://registry.yarnpkg.com/expo-symbols/-/expo-symbols-1.0.8.tgz#a46ae8fb46eb07ae9974c445595d2f342ed4dd30"
-  integrity sha512-7bNjK350PaQgxBf0owpmSYkdZIpdYYmaPttDBb2WIp6rIKtcEtdzdfmhsc2fTmjBURHYkg36+eCxBFXO25/1hw==
-  dependencies:
-    sf-symbols-typescript "^2.0.0"
-
 expo-system-ui@~6.0.7:
   version "6.0.9"
   resolved "https://registry.yarnpkg.com/expo-system-ui/-/expo-system-ui-6.0.9.tgz#09b4a4301ab25ec594ae39beb7d24197c231a30c"
@@ -7508,7 +7501,7 @@ setprototypeof@~1.2.0:
   resolved "https://registry.yarnpkg.com/setprototypeof/-/setprototypeof-1.2.0.tgz#66c9a24a73f9fc28cbe66b09fed3d33dcaf1b424"
   integrity sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==
 
-sf-symbols-typescript@^2.0.0, sf-symbols-typescript@^2.1.0:
+sf-symbols-typescript@^2.1.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/sf-symbols-typescript/-/sf-symbols-typescript-2.2.0.tgz#926d6e0715e3d8784cadf7658431e36581254208"
   integrity sha512-TPbeg0b7ylrswdGCji8FRGFAKuqbpQlLbL8SOle3j1iHSs5Ob5mhvMAxWN2UItOjgALAB5Zp3fmMfj8mbWvXKw==
